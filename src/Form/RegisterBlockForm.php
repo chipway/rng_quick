@@ -78,9 +78,17 @@ class RegisterBlockForm extends FormBase {
       $form['actions'] = ['#type' => 'actions'];
       $form['actions']['submit'] = [
         '#type' => 'submit',
-        '#value' => t('Create registration'),
+        '#value' => $this->t('Create registration'),
         '#button_type' => 'primary',
       ];
+
+      // RegisterBlock::blockAccess() already checked for self.
+      if (($event_meta->countProxyIdentities() - 1) > 0) {
+        $form['actions']['other'] = [
+          '#type' => 'submit',
+          '#value' => $this->t('Other person'),
+        ];
+      }
     }
     else {
       $form['description']['#markup'] = $this->t('Multiple registration types are available for this event. Click register to continue.');
@@ -88,7 +96,7 @@ class RegisterBlockForm extends FormBase {
       $form['actions'] = ['#type' => 'actions'];
       $form['actions']['submit'] = [
         '#type' => 'submit',
-        '#value' => t('Register'),
+        '#value' => $this->t('Register'),
         '#button_type' => 'primary',
       ];
     }
@@ -103,10 +111,19 @@ class RegisterBlockForm extends FormBase {
     $event = $this->event;
     $event_meta = $this->eventManager->getMeta($event);
     $user = User::load(\Drupal::currentUser()->id());
+    $route_parameters = [
+      $event->getEntityTypeId() => $event->id(),
+    ];
 
     $registration_types = $event_meta->getRegistrationTypes();
     if (1 == count($registration_types)) {
       $registration_type = reset($registration_types);
+      if ($form_state->getValue('op') == $this->t('Other person')) {
+        $route_parameters['registration_type'] = $registration_type->id();
+        $form_state->setRedirect('rng.event.' . $event->getEntityTypeId() . '.register', $route_parameters);
+        return;
+      }
+
       $registration = Registration::create([
         'type' => $registration_type->id(),
       ]);
@@ -125,10 +142,7 @@ class RegisterBlockForm extends FormBase {
       }
     }
     else {
-      $form_state->setRedirect(
-        'rng.event.' . $event->getEntityTypeId() . '.register.type_list', [
-        $event->getEntityTypeId() => $event->id(),
-      ]);
+      $form_state->setRedirect('rng.event.' . $event->getEntityTypeId() . '.register.type_list', $route_parameters);
       return;
     }
 

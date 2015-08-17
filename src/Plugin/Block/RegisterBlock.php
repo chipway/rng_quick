@@ -149,7 +149,6 @@ class RegisterBlock extends BlockBase implements ContainerFactoryPluginInterface
     return $build;
   }
 
-
   public function getCacheMaxAge() {
     return 0;
   }
