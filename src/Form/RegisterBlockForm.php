@@ -71,22 +71,24 @@ class RegisterBlockForm extends FormBase {
 
     $registration_types = $event_meta->getRegistrationTypes();
     if (1 == count($registration_types)) {
-      $form['description']['#markup'] = $this->t('Register %user for %event.', [
-        '%event' => $event->label(),
-        '%user' => \Drupal::currentUser()->getUsername(),
-      ]);
       $form['actions'] = ['#type' => 'actions'];
       $form['actions']['submit'] = [
         '#type' => 'submit',
         '#value' => $this->t('Create registration'),
         '#button_type' => 'primary',
       ];
+      $form['description']['#type'] = 'item';
+      $form['description']['#markup'] = $this->t('Register %user for %event.', [
+        '%event' => $event->label(),
+        '%user' => \Drupal::currentUser()->getUsername(),
+      ]);
 
       // RegisterBlock::blockAccess() already checked for self.
       if (($event_meta->countProxyIdentities() - 1) > 0) {
         $form['actions']['other'] = [
           '#type' => 'submit',
           '#value' => $this->t('Other person'),
+          '#submit' => array('::registerOther'),
         ];
       }
     }
@@ -111,19 +113,11 @@ class RegisterBlockForm extends FormBase {
     $event = $this->event;
     $event_meta = $this->eventManager->getMeta($event);
     $user = User::load(\Drupal::currentUser()->id());
-    $route_parameters = [
-      $event->getEntityTypeId() => $event->id(),
-    ];
+    $route_parameters[$event->getEntityTypeId()] = $event->id();
 
     $registration_types = $event_meta->getRegistrationTypes();
     if (1 == count($registration_types)) {
       $registration_type = reset($registration_types);
-      if ($form_state->getValue('op') == $this->t('Other person')) {
-        $route_parameters['registration_type'] = $registration_type->id();
-        $form_state->setRedirect('rng.event.' . $event->getEntityTypeId() . '.register', $route_parameters);
-        return;
-      }
-
       $registration = Registration::create([
         'type' => $registration_type->id(),
       ]);
@@ -148,4 +142,18 @@ class RegisterBlockForm extends FormBase {
 
     drupal_set_message($this->t('Unable to create registration.'), 'error');
   }
+
+  /**
+   * Submit handler for 'other person'.
+   */
+  public function registerOther(array &$form, FormStateInterface $form_state) {
+    $event = $this->event;
+    $event_meta = $this->eventManager->getMeta($event);
+    $registration_types = $event_meta->getRegistrationTypes();
+    $registration_type = reset($registration_types);
+    $route_parameters[$event->getEntityTypeId()] = $event->id();
+    $route_parameters['registration_type'] = $registration_type->id();
+    $form_state->setRedirect('rng.event.' . $event->getEntityTypeId() . '.register', $route_parameters);
+  }
+
 }
