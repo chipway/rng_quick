@@ -71,24 +71,28 @@ class RegisterBlockForm extends FormBase {
 
     $registration_types = $event_meta->getRegistrationTypes();
     if (1 == count($registration_types)) {
+      $t_args = [
+        '@event' => $event->label(),
+        '@user' => \Drupal::currentUser()->getUsername(),
+      ];
+
       $form['actions'] = ['#type' => 'actions'];
       $form['actions']['submit'] = [
         '#type' => 'submit',
-        '#value' => $this->t('Create registration'),
+        '#value' => $this->t('Create registration for @user', $t_args),
         '#button_type' => 'primary',
+        '#dropbutton' => 'register',
       ];
-      $form['description']['#type'] = 'item';
-      $form['description']['#markup'] = $this->t('Register %user for %event.', [
-        '%event' => $event->label(),
-        '%user' => \Drupal::currentUser()->getUsername(),
-      ]);
+
+      $form['description']['#markup'] = '<p>' . $this->t('Register for @event.', $t_args) . '</p>';
 
       // RegisterBlock::blockAccess() already checked for self.
       if (($event_meta->countProxyIdentities() - 1) > 0) {
         $form['actions']['other'] = [
           '#type' => 'submit',
-          '#value' => $this->t('Other person'),
+          '#value' => $this->t('Create registration for other person'),
           '#submit' => array('::registerOther'),
+          '#dropbutton' => 'register',
         ];
       }
     }
