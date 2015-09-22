@@ -8,6 +8,7 @@
 namespace Drupal\rng_quick\Plugin\Block;
 
 use Drupal\Core\Access\AccessResult;
+use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Routing\RedirectDestinationTrait;
 use Drupal\Core\Routing\RouteMatchInterface;
@@ -126,6 +127,13 @@ class RegisterBlock extends BlockBase implements ContainerFactoryPluginInterface
 
     if ($route_entity_type) {
       $this->event = $this->routeMatch->getParameter($route_entity_type->id());
+      // Views does not invoke EntityConverter param upconverter.
+      if (!$this->event instanceof EntityInterface) {
+        $this->event = \Drupal::entityManager()
+          ->getStorage($route_entity_type->id())
+          ->load($this->event);
+      }
+
       if (\Drupal::currentUser()->isAuthenticated() && $this->eventManager->isEvent($this->event)) {
         $event_meta = $this->eventManager->getMeta($this->event);
         if ($event_meta->identitiesCanRegister('user', [\Drupal::currentUser()->id()])) {
