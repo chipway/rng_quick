@@ -9,6 +9,7 @@ namespace Drupal\rng_quick\Form;
 
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Entity\EntityInterface;
 use Drupal\rng\EventManagerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\rng\Entity\Registration;
@@ -65,7 +66,7 @@ class RegisterBlockForm extends FormBase {
    * @param \Drupal\Core\Entity\EntityInterface $event
    *   The event entity.
    */
-  public function buildForm(array $form, FormStateInterface $form_state, $event = NULL) {
+  public function buildForm(array $form, FormStateInterface $form_state, EntityInterface $event = NULL) {
     $this->event = $event;
     $event_meta = $this->eventManager->getMeta($event);
 

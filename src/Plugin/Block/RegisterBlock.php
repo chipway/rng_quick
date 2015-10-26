@@ -93,11 +93,13 @@ class RegisterBlock extends BlockBase implements ContainerFactoryPluginInterface
   /**
    * {@inheritdoc}
    */
-  protected function blockAccess(AccountInterface $account) {
+  protected function getEvent() {
     $route = $this->routeMatch->getRouteObject();
     $route_entity_type = NULL;
+
+    // Determine if current route is for an entity.
     foreach (\Drupal::entityManager()->getDefinitions() as $entity_type) {
-      // Do not show if on register forms
+      // Do not show if on register forms.
       $registration_routes = [
         'rng.event.' . $entity_type->id() . '.register',
         'rng.event.' . $entity_type->id() . '.register.type_list',
@@ -126,25 +128,31 @@ class RegisterBlock extends BlockBase implements ContainerFactoryPluginInterface
     }
 
     if ($route_entity_type) {
-      $this->event = $this->routeMatch->getParameter($route_entity_type->id());
+      $event = $this->routeMatch->getParameter($route_entity_type->id());
       // Views does not invoke EntityConverter param upconverter.
-      if (!$this->event instanceof EntityInterface) {
-        $this->event = \Drupal::entityManager()
+      if (!$event instanceof EntityInterface) {
+        return \Drupal::entityManager()
           ->getStorage($route_entity_type->id())
           ->load($this->event);
       }
+      return $event;
+    }
+  }
 
-      if (\Drupal::currentUser()->isAuthenticated() && $this->eventManager->isEvent($this->event)) {
-        $event_meta = $this->eventManager->getMeta($this->event);
-        if ($event_meta->identitiesCanRegister('user', [\Drupal::currentUser()->id()])) {
-          $context = ['event' => $this->event];
-          return \Drupal::entityManager()
-            ->getAccessControlHandler('registration')
-            ->createAccess(NULL, NULL, $context, TRUE);
-        }
+  /**
+   * {@inheritdoc}
+   */
+  protected function blockAccess(AccountInterface $account) {
+    $event = $this->getEvent();
+    if (\Drupal::currentUser()->isAuthenticated() && $event && $this->eventManager->isEvent($event)) {
+      $event_meta = $this->eventManager->getMeta($event);
+      if ($event_meta->identitiesCanRegister('user', [\Drupal::currentUser()->id()])) {
+        $context = ['event' => $event];
+        return \Drupal::entityManager()
+          ->getAccessControlHandler('registration')
+          ->createAccess(NULL, NULL, $context, TRUE);
       }
     }
-
     return AccessResult::neutral();
   }
 
@@ -153,7 +161,8 @@ class RegisterBlock extends BlockBase implements ContainerFactoryPluginInterface
    */
   public function build() {
     $build = [];
-    $build[] = \Drupal::formBuilder()->getForm('Drupal\rng_quick\Form\RegisterBlockForm', $this->event);
+    $event = $this->getEvent();
+    $build[] = \Drupal::formBuilder()->getForm('Drupal\rng_quick\Form\RegisterBlockForm', $event);
     return $build;
   }
 
