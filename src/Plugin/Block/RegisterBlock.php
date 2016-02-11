@@ -11,12 +11,15 @@ use Drupal\Core\Access\AccessResult;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Routing\RedirectDestinationTrait;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Form\FormBuilderInterface;
 use Drupal\Core\Routing\RouteMatchInterface;
 use Drupal\Core\Routing\UrlGeneratorTrait;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\Block\BlockBase;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\rng\EventManagerInterface;
+use Drupal\rng_quick\Form\RegisterBlockForm;
 
 /**
  * Provides a 'Quick Registration' block.
@@ -31,6 +34,27 @@ class RegisterBlock extends BlockBase implements ContainerFactoryPluginInterface
 
   use UrlGeneratorTrait;
   use RedirectDestinationTrait;
+
+  /**
+   * The entity type manager.
+   *
+   * @var \Drupal\Core\Entity\EntityTypeManagerInterface
+   */
+  protected $entityTypeManager;
+
+  /**
+   * The form builder.
+   *
+   * @var \Drupal\Core\Form\FormBuilderInterface
+   */
+  protected $formBuilder;
+
+  /**
+   * The current user.
+   *
+   * @var \Drupal\Core\Session\AccountInterface.
+   */
+  protected $account;
 
   /**
    * The route match.
@@ -65,14 +89,23 @@ class RegisterBlock extends BlockBase implements ContainerFactoryPluginInterface
    *   The plugin_id for the plugin instance.
    * @param mixed $plugin_definition
    *   The plugin implementation definition.
+   * @param \Drupal\Core\Entity\EntityTypeManagerInterface
+   *   The entity type manager.
+   * @param \Drupal\Core\Form\FormBuilderInterface $form_builder
+   *   The form builder.
+   * @param \Drupal\Core\Session\AccountInterface $account
+   *   The current user.
    * @param \Drupal\Core\Routing\RouteMatchInterface $route_match
    *   The route match.
    * @param \Drupal\rng\EventManagerInterface $event_manager
    *   The RNG event manager.
    */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, RouteMatchInterface $route_match, EventManagerInterface $event_manager) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manager, FormBuilderInterface $form_builder, AccountInterface $account, RouteMatchInterface $route_match, EventManagerInterface $event_manager) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
 
+    $this->entityTypeManager = $entity_type_manager;
+    $this->formBuilder = $form_builder;
+    $this->account = $account;
     $this->routeMatch = $route_match;
     $this->eventManager = $event_manager;
   }
@@ -85,6 +118,9 @@ class RegisterBlock extends BlockBase implements ContainerFactoryPluginInterface
       $configuration,
       $plugin_id,
       $plugin_definition,
+      $container->get('entity_type.manager'),
+      $container->get('form_builder'),
+      $container->get('current_user'),
       $container->get('current_route_match'),
       $container->get('rng.event_manager')
     );
@@ -98,7 +134,7 @@ class RegisterBlock extends BlockBase implements ContainerFactoryPluginInterface
     $route_entity_type = NULL;
 
     // Determine if current route is for an entity.
-    foreach (\Drupal::entityManager()->getDefinitions() as $entity_type) {
+    foreach ($this->entityTypeManager->getDefinitions() as $entity_type) {
       // Do not show if on register forms.
       $registration_routes = [
         'rng.event.' . $entity_type->id() . '.register',
@@ -131,7 +167,7 @@ class RegisterBlock extends BlockBase implements ContainerFactoryPluginInterface
       $event = $this->routeMatch->getParameter($route_entity_type->id());
       // Views does not invoke EntityConverter param upconverter.
       if (!$event instanceof EntityInterface) {
-        return \Drupal::entityManager()
+        return $this->entityTypeManager
           ->getStorage($route_entity_type->id())
           ->load($this->event);
       }
@@ -144,11 +180,11 @@ class RegisterBlock extends BlockBase implements ContainerFactoryPluginInterface
    */
   protected function blockAccess(AccountInterface $account) {
     $event = $this->getEvent();
-    if (\Drupal::currentUser()->isAuthenticated() && $event && $this->eventManager->isEvent($event)) {
+    if ($this->account->isAuthenticated() && $event && $this->eventManager->isEvent($event)) {
       $event_meta = $this->eventManager->getMeta($event);
-      if ($event_meta->identitiesCanRegister('user', [\Drupal::currentUser()->id()])) {
+      if ($event_meta->identitiesCanRegister('user', [$this->account->id()])) {
         $context = ['event' => $event];
-        return \Drupal::entityManager()
+        return $this->entityTypeManager
           ->getAccessControlHandler('registration')
           ->createAccess(NULL, NULL, $context, TRUE);
       }
@@ -162,7 +198,7 @@ class RegisterBlock extends BlockBase implements ContainerFactoryPluginInterface
   public function build() {
     $build = [];
     $event = $this->getEvent();
-    $build[] = \Drupal::formBuilder()->getForm('Drupal\rng_quick\Form\RegisterBlockForm', $event);
+    $build[] = $this->formBuilder->getForm(RegisterBlockForm::class, $event);
     return $build;
   }
 
