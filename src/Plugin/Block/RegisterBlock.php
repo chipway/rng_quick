@@ -169,7 +169,7 @@ class RegisterBlock extends BlockBase implements ContainerFactoryPluginInterface
       if (!$event instanceof EntityInterface) {
         return $this->entityTypeManager
           ->getStorage($route_entity_type->id())
-          ->load($this->event);
+          ->load($event);
       }
       return $event;
     }
