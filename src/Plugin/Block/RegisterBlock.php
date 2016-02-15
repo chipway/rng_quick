@@ -196,10 +196,13 @@ class RegisterBlock extends BlockBase implements ContainerFactoryPluginInterface
    * {@inheritdoc}
    */
   public function build() {
-    $build = [];
     $event = $this->getEvent();
-    $build[] = $this->formBuilder->getForm(RegisterBlockForm::class, $event);
-    return $build;
+    // Display suite does not call ::blockAccess(), goes directly to build().
+    // Need to check $event is set again.
+    if ($event) {
+      return $this->formBuilder->getForm(RegisterBlockForm::class, $event);
+    }
+    return [];
   }
 
   public function getCacheMaxAge() {
