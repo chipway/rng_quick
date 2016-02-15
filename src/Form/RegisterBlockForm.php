@@ -10,6 +10,7 @@ namespace Drupal\rng_quick\Form;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Session\AccountInterface;
 use Drupal\rng\EventManagerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\rng\Entity\Registration;
@@ -19,6 +20,13 @@ use Drupal\user\Entity\User;
  * Builds the form for the quick registration block.
  */
 class RegisterBlockForm extends FormBase {
+
+  /**
+   * The current user.
+   *
+   * @var \Drupal\Core\Session\AccountInterface.
+   */
+  protected $account;
 
   /**
    * The RNG event manager.
@@ -37,10 +45,13 @@ class RegisterBlockForm extends FormBase {
   /**
    * Constructs a new RegisterBlockForm instance.
    *
+   * @param \Drupal\Core\Session\AccountInterface $account
+   *   The current user.
    * @param \Drupal\rng\EventManagerInterface $event_manager
    *   The RNG event manager.
    */
-  public function __construct(EventManagerInterface $event_manager) {
+  public function __construct(AccountInterface $account, EventManagerInterface $event_manager) {
+    $this->account = $account;
     $this->eventManager = $event_manager;
   }
 
@@ -49,6 +60,7 @@ class RegisterBlockForm extends FormBase {
    */
   public static function create(ContainerInterface $container) {
     return new static(
+      $container->get('current_user'),
       $container->get('rng.event_manager')
     );
   }
@@ -71,24 +83,32 @@ class RegisterBlockForm extends FormBase {
     $event_meta = $this->eventManager->getMeta($event);
 
     $registration_types = $event_meta->getRegistrationTypes();
+    if (!$registration_types) {
+      // Normally RegisterBlock::blockAccess() will prevent this, but Display
+      // Suite skips that check.
+      return $form;
+    }
+
     if (1 == count($registration_types)) {
       $t_args = [
         '@event' => $event->label(),
-        '@user' => \Drupal::currentUser()->getUsername(),
+        '@user' => $this->account->getDisplayName(),
       ];
 
       $form['actions'] = ['#type' => 'actions'];
-      $form['actions']['submit'] = [
-        '#type' => 'submit',
-        '#value' => $this->t('Create registration for @user', $t_args),
-        '#button_type' => 'primary',
-        '#dropbutton' => 'register',
-      ];
 
-      $form['description']['#markup'] = '<p>' . $this->t('Register for @event.', $t_args) . '</p>';
+      $self = 0;
+      if ($event_meta->identitiesCanRegister('user', [$this->account->id()])) {
+        $self = 1;
+        $form['actions']['submit'] = [
+          '#type' => 'submit',
+          '#value' => $this->t('Create registration for @user', $t_args),
+          '#button_type' => 'primary',
+          '#dropbutton' => 'register',
+        ];
+      }
 
-      // RegisterBlock::blockAccess() already checked for self.
-      if (($event_meta->countProxyIdentities() - 1) > 0) {
+      if (($event_meta->countProxyIdentities() - $self) > 0) {
         $form['actions']['other'] = [
           '#type' => 'submit',
           '#value' => $this->t('Create registration for other person'),
@@ -96,6 +116,8 @@ class RegisterBlockForm extends FormBase {
           '#dropbutton' => 'register',
         ];
       }
+
+      $form['description']['#markup'] = '<p>' . $this->t('Register for @event.', $t_args) . '</p>';
     }
     else {
       $form['description']['#markup'] = $this->t('Multiple registration types are available for this event. Click register to continue.');
@@ -135,7 +157,7 @@ class RegisterBlockForm extends FormBase {
           '@entity_type' => $registration->getEntityType()->getLabel(),
         ]));
         if ($registration->access('view')) {
-          $form_state->setRedirectUrl($registration->urlInfo());
+          $form_state->setRedirectUrl($registration->toUrl());
           return;
         }
       }
