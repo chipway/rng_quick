@@ -127,7 +127,10 @@ class RegisterBlock extends BlockBase implements ContainerFactoryPluginInterface
   }
 
   /**
-   * {@inheritdoc}
+   * Determine the event displayed.
+   *
+   * @return \Drupal\Core\Entity\EntityInterface|NULL
+   *   An event entity, or NULL if no event is displayed.
    */
   protected function getEvent() {
     $route = $this->routeMatch->getRouteObject();
@@ -173,23 +176,28 @@ class RegisterBlock extends BlockBase implements ContainerFactoryPluginInterface
       }
       return $event;
     }
+
+    return NULL;
   }
 
   /**
    * {@inheritdoc}
    */
   protected function blockAccess(AccountInterface $account) {
-    $event = $this->getEvent();
-    if ($this->account->isAuthenticated() && $event && $this->eventManager->isEvent($event)) {
-      $event_meta = $this->eventManager->getMeta($event);
-      if ($event_meta->identitiesCanRegister('user', [$this->account->id()])) {
-        $context = ['event' => $event];
-        return $this->entityTypeManager
-          ->getAccessControlHandler('registration')
-          ->createAccess(NULL, NULL, $context, TRUE);
-      }
+    if (!$event = $this->getEvent()) {
+      return AccessResult::neutral();
     }
-    return AccessResult::neutral();
+
+    if ($this->account->isAuthenticated() && $this->eventManager->isEvent($event)) {
+      $context = ['event' => $event];
+      return $this->entityTypeManager
+        ->getAccessControlHandler('registration')
+        ->createAccess(NULL, NULL, $context, TRUE)
+        ->addCacheableDependency($event);
+    }
+
+    return AccessResult::neutral()
+      ->addCacheableDependency($event);
   }
 
   /**
