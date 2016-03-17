@@ -7,8 +7,8 @@
 
 namespace Drupal\rng_quick\Plugin\Block;
 
+use Drupal\Component\Plugin\Exception\PluginException;
 use Drupal\Core\Access\AccessResult;
-use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Routing\RedirectDestinationTrait;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
@@ -20,6 +20,7 @@ use Drupal\Core\Block\BlockBase;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\rng\EventManagerInterface;
 use Drupal\rng_quick\Form\RegisterBlockForm;
+use Drupal\Core\Cache\Cache;
 
 /**
  * Provides a 'Quick Registration' block.
@@ -27,7 +28,13 @@ use Drupal\rng_quick\Form\RegisterBlockForm;
  * @Block(
  *   id = "rng_quick_registration",
  *   admin_label = @Translation("Quick Registration"),
- *   category = @Translation("RNG")
+ *   category = @Translation("RNG"),
+ *   context = {
+ *     "rng_event" = @ContextDefinition("entity",
+ *       label = @Translation("User"),
+ *       required = FALSE
+ *     )
+ *   }
  * )
  */
 class RegisterBlock extends BlockBase implements ContainerFactoryPluginInterface {
@@ -69,13 +76,6 @@ class RegisterBlock extends BlockBase implements ContainerFactoryPluginInterface
    * @var \Drupal\rng\EventManagerInterface
    */
   protected $eventManager;
-
-  /**
-   * The event entity that is being viewed.
-   *
-   * @var \Drupal\Core\Entity\EntityInterface
-   */
-  protected $event;
 
   /**
    * Constructs a new RegisterBlock instance.
@@ -127,94 +127,47 @@ class RegisterBlock extends BlockBase implements ContainerFactoryPluginInterface
   }
 
   /**
-   * Determine the event displayed.
-   *
-   * @return \Drupal\Core\Entity\EntityInterface|NULL
-   *   An event entity, or NULL if no event is displayed.
-   */
-  protected function getEvent() {
-    $route = $this->routeMatch->getRouteObject();
-    $route_entity_type = NULL;
-
-    // Determine if current route is for an entity.
-    foreach ($this->entityTypeManager->getDefinitions() as $entity_type) {
-      // Do not show if on register forms.
-      $registration_routes = [
-        'rng.event.' . $entity_type->id() . '.register',
-        'rng.event.' . $entity_type->id() . '.register.type_list',
-      ];
-      if (in_array($this->routeMatch->getRouteName(), $registration_routes)) {
-        break;
-      }
-
-      // Exact link template.
-      foreach ($entity_type->getLinkTemplates() as $link_template => $path) {
-        if ($route->getPath() === $path) {
-          $route_entity_type = $entity_type;
-          break 2;
-        }
-      }
-
-      // Or this route is a sub string of canonical.
-      if ($canonical_route = $entity_type->getLinkTemplate('canonical')) {
-        if (strlen($route->getPath()) > strlen($canonical_route)) {
-          if (substr($route->getPath(), 0, strlen($canonical_route)) == $canonical_route) {
-            $route_entity_type = $entity_type;
-            break;
-          }
-        }
-      }
-    }
-
-    if ($route_entity_type) {
-      $event = $this->routeMatch->getParameter($route_entity_type->id());
-      // Views does not invoke EntityConverter param upconverter.
-      if (!$event instanceof EntityInterface) {
-        return $this->entityTypeManager
-          ->getStorage($route_entity_type->id())
-          ->load($event);
-      }
-      return $event;
-    }
-
-    return NULL;
-  }
-
-  /**
    * {@inheritdoc}
    */
   protected function blockAccess(AccountInterface $account) {
-    if (!$event = $this->getEvent()) {
-      return AccessResult::neutral();
-    }
+    try {
+      /** @var \Drupal\Core\Entity\EntityInterface $event */
+      if ($event = $this->getContextValue('rng_event')) {
+        // Do not show if on register forms.
+        $registration_routes = [
+          'rng.event.' . $event->getEntityTypeId() . '.register',
+          'rng.event.' . $event->getEntityTypeId() . '.register.type_list',
+        ];
+        if (in_array($this->routeMatch->getRouteName(), $registration_routes)) {
+          return AccessResult::neutral()
+            ->addCacheContexts(['route']);
+        }
 
-    if ($this->account->isAuthenticated() && $this->eventManager->isEvent($event)) {
-      $context = ['event' => $event];
-      return $this->entityTypeManager
-        ->getAccessControlHandler('registration')
-        ->createAccess(NULL, NULL, $context, TRUE)
-        ->addCacheableDependency($event);
+        $context = ['event' => $event];
+        return $this->entityTypeManager
+          ->getAccessControlHandler('registration')
+          ->createAccess(NULL, NULL, $context, TRUE)
+          ->addCacheableDependency($event)
+          ->addCacheContexts(['url', 'user']);
+      }
     }
-
-    return AccessResult::neutral()
-      ->addCacheableDependency($event);
+    catch (PluginException $e) {
+    }
+    return AccessResult::neutral();
   }
 
   /**
    * {@inheritdoc}
    */
   public function build() {
-    $event = $this->getEvent();
-    // Display suite does not call ::blockAccess(), goes directly to build().
-    // Need to check $event is set again.
-    if ($event) {
-      return $this->formBuilder->getForm(RegisterBlockForm::class, $event);
+    try {
+      if ($event = $this->getContextValue('rng_event')) {
+        return $this->formBuilder->getForm(RegisterBlockForm::class, $event);
+      }
+    }
+    catch (PluginException $e) {
     }
     return [];
-  }
-
-  public function getCacheMaxAge() {
-    return 0;
   }
 
 }
