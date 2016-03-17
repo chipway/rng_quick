@@ -148,7 +148,7 @@ class RegisterBlock extends BlockBase implements ContainerFactoryPluginInterface
           ->getAccessControlHandler('registration')
           ->createAccess(NULL, NULL, $context, TRUE)
           ->addCacheableDependency($event)
-          ->addCacheContexts(['url', 'user']);
+          ->addCacheContexts(['rng_event', 'user']);
       }
     }
     catch (PluginException $e) {
