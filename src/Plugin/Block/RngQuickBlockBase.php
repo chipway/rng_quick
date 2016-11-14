@@ -86,9 +86,10 @@ abstract class RngQuickBlockBase extends BlockBase implements ContainerFactoryPl
       /** @var \Drupal\Core\Entity\EntityInterface $event */
       if ($event = $this->getContextValue('rng_event')) {
         // Do not show if on register forms.
+        $entity_type = $event->getEntityTypeId();
         $registration_routes = [
-          'rng.event.' . $event->getEntityTypeId() . '.register',
-          'rng.event.' . $event->getEntityTypeId() . '.register.type_list',
+          "rng.event.$entity_type.register",
+          "rng.event.$entity_type.register.type_list",
         ];
         if (in_array($this->routeMatch->getRouteName(), $registration_routes)) {
           return AccessResult::neutral()

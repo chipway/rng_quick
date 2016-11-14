@@ -28,7 +28,7 @@ use Drupal\rng_quick\Form\RegisterBlockForm;
  *   }
  * )
  */
-class RngQuickRegisterBlock extends BlockBase implements ContainerFactoryPluginInterface {
+class RngQuickRegisterBlock extends RngQuickBlockBase implements ContainerFactoryPluginInterface {
 
   /**
    * The form builder.
@@ -59,11 +59,7 @@ class RngQuickRegisterBlock extends BlockBase implements ContainerFactoryPluginI
    *   The form builder.
    */
   public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manager, RouteMatchInterface $route_match, EventManagerInterface $event_manager, FormBuilderInterface $form_builder) {
-    parent::__construct($configuration, $plugin_id, $plugin_definition);
-
-    $this->entityTypeManager = $entity_type_manager;
-    $this->routeMatch = $route_match;
-    $this->eventManager = $event_manager;
+    parent::__construct($configuration, $plugin_id, $plugin_definition, $entity_type_manager, $route_match, $event_manager);
     $this->formBuilder = $form_builder;
   }
 
