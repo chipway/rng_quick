@@ -6,7 +6,6 @@ use Drupal\Component\Plugin\Exception\PluginException;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Entity\EntityFormBuilderInterface;
 use Drupal\Core\Routing\RouteMatchInterface;
-use Drupal\Core\Session\AccountInterface;
 use Drupal\rng\Entity\Registration;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\rng\EventManagerInterface;
@@ -86,7 +85,7 @@ class RngRegistrationBlock extends RngQuickBlockBase {
         $registration_types = $event_meta->getRegistrationTypes();
 
         // Just want one registration type.
-        if (count($registration_types) !== 1) {
+        if (count($registration_types) === 1) {
           $registration_type = reset($registration_types);
           $registration = Registration::create([
             'type' => $registration_type->id(),
